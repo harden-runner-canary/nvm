@@ -70,7 +70,7 @@ nvm_command_info() {
   elif type "${COMMAND}" | nvm_grep -q "^${COMMAND} is an alias for"; then
     # shellcheck disable=SC2230
     INFO="$(which "${COMMAND}") ($(type "${COMMAND}" | command awk '{ $1=$2=$3=$4=$5="" ;print }' | command sed 's/^\ *//g'))"
-  elif type "${COMMAND}" | nvm_grep -q "^${COMMAND} is \\/"; then
+  elif type "${COMMAND}" | nvm_grep -q "^${COMMAND} is /"; then
     INFO="$(type "${COMMAND}" | command awk '{print $3}')"
   else
     INFO="$(type "${COMMAND}")"
@@ -101,15 +101,15 @@ nvm_get_latest() {
     if nvm_curl_use_compression; then
       CURL_COMPRESSED_FLAG="--compressed"
     fi
-    NVM_LATEST_URL="$(curl ${CURL_COMPRESSED_FLAG:-} -q -w "%{url_effective}\\n" -L -s -S http://latest.nvm.sh -o /dev/null)"
+    NVM_LATEST_URL="$(curl ${CURL_COMPRESSED_FLAG:-} -q -w "%{url_effective}\\n" -L -s -S https://latest.nvm.sh -o /dev/null)"
   elif nvm_has "wget"; then
-    NVM_LATEST_URL="$(wget -q http://latest.nvm.sh --server-response -O /dev/null 2>&1 | command awk '/^  Location: /{DEST=$2} END{ print DEST }')"
+    NVM_LATEST_URL="$(wget -q https://latest.nvm.sh --server-response -O /dev/null 2>&1 | command awk '/^  Location: /{DEST=$2} END{ print DEST }')"
   else
     nvm_err 'nvm needs curl or wget to proceed.'
     return 1
   fi
   if [ -z "${NVM_LATEST_URL}" ]; then
-    nvm_err "http://latest.nvm.sh did not redirect to the latest release on GitHub"
+    nvm_err "https://latest.nvm.sh did not redirect to the latest release on GitHub"
     return 2
   fi
   nvm_echo "${NVM_LATEST_URL##*/}"
@@ -283,6 +283,11 @@ nvm_install_latest_npm() {
     if [ $NVM_IS_13_OR_ABOVE -eq 1 ] && nvm_version_greater_than_or_equal_to "${NODE_VERSION}" 14.15.0; then
       NVM_IS_14_LTS_OR_ABOVE=1
     fi
+    local NVM_IS_14_17_OR_ABOVE
+    NVM_IS_14_17_OR_ABOVE=0
+    if [ $NVM_IS_14_LTS_OR_ABOVE -eq 1 ] && nvm_version_greater_than_or_equal_to "${NODE_VERSION}" 14.17.0; then
+      NVM_IS_14_17_OR_ABOVE=1
+    fi
     local NVM_IS_15_OR_ABOVE
     NVM_IS_15_OR_ABOVE=0
     if [ $NVM_IS_14_LTS_OR_ABOVE -eq 1 ] && nvm_version_greater_than_or_equal_to "${NODE_VERSION}" 15.0.0; then
@@ -292,6 +297,21 @@ nvm_install_latest_npm() {
     NVM_IS_16_OR_ABOVE=0
     if [ $NVM_IS_15_OR_ABOVE -eq 1 ] && nvm_version_greater_than_or_equal_to "${NODE_VERSION}" 16.0.0; then
       NVM_IS_16_OR_ABOVE=1
+    fi
+    local NVM_IS_16_LTS_OR_ABOVE
+    NVM_IS_16_LTS_OR_ABOVE=0
+    if [ $NVM_IS_16_OR_ABOVE -eq 1 ] && nvm_version_greater_than_or_equal_to "${NODE_VERSION}" 16.13.0; then
+      NVM_IS_16_LTS_OR_ABOVE=1
+    fi
+    local NVM_IS_17_OR_ABOVE
+    NVM_IS_17_OR_ABOVE=0
+    if [ $NVM_IS_16_LTS_OR_ABOVE -eq 1 ] && nvm_version_greater_than_or_equal_to "${NODE_VERSION}" 17.0.0; then
+      NVM_IS_17_OR_ABOVE=1
+    fi
+    local NVM_IS_18_OR_ABOVE
+    NVM_IS_18_OR_ABOVE=0
+    if [ $NVM_IS_17_OR_ABOVE -eq 1 ] && nvm_version_greater_than_or_equal_to "${NODE_VERSION}" 18.0.0; then
+      NVM_IS_18_OR_ABOVE=1
     fi
 
     if [ $NVM_IS_4_4_OR_BELOW -eq 1 ] || {
@@ -321,6 +341,14 @@ nvm_install_latest_npm() {
     ; then
       nvm_echo '* `npm` `v7.x` is the last version that works on `node` `v13`, `v15`, below `v12.13`, or `v14.0` - `v14.15`'
       $NVM_NPM_CMD install -g npm@7
+    elif \
+      { [ $NVM_IS_12_LTS_OR_ABOVE -eq 1 ] && [ $NVM_IS_13_OR_ABOVE -eq 0 ]; } \
+      || { [ $NVM_IS_14_LTS_OR_ABOVE -eq 1 ] && [ $NVM_IS_14_17_OR_ABOVE -eq 0 ]; } \
+      || { [ $NVM_IS_16_OR_ABOVE -eq 1 ] && [ $NVM_IS_16_LTS_OR_ABOVE -eq 0 ]; } \
+      || { [ $NVM_IS_17_OR_ABOVE -eq 1 ] && [ $NVM_IS_18_OR_ABOVE -eq 0 ]; } \
+    ; then
+      nvm_echo '* `npm` `v8.x` is the last version that works on `node` `v12`, `v14.13` - `v14.16`, or `v16.0` - `v16.12`'
+      $NVM_NPM_CMD install -g npm@8
     else
       nvm_echo '* Installing latest `npm`; if this does not work on your node version, please report a bug!'
       $NVM_NPM_CMD install -g npm
@@ -506,6 +534,8 @@ nvm_version_path() {
 nvm_ensure_version_installed() {
   local PROVIDED_VERSION
   PROVIDED_VERSION="${1-}"
+  local IS_VERSION_FROM_NVMRC
+  IS_VERSION_FROM_NVMRC="${2-}"
   if [ "${PROVIDED_VERSION}" = 'system' ]; then
     if nvm_has_system_iojs || nvm_has_system_node; then
       return 0
@@ -527,7 +557,11 @@ nvm_ensure_version_installed() {
       nvm_err "N/A: version \"${PREFIXED_VERSION:-$PROVIDED_VERSION}\" is not yet installed."
     fi
     nvm_err ""
-    nvm_err "You need to run \"nvm install ${PROVIDED_VERSION}\" to install it before using it."
+    if [ "${IS_VERSION_FROM_NVMRC}" != '1' ]; then
+        nvm_err "You need to run \`nvm install ${PROVIDED_VERSION}\` to install and use it."
+      else
+        nvm_err 'You need to run `nvm install` to install and use the node version specified in `.nvmrc`.'
+    fi
     return 1
   fi
 }
@@ -808,7 +842,7 @@ nvm_set_colors() {
       nvm_echo "Setting colors to: ${INSTALLED_COLOR} ${LTS_AND_SYSTEM_COLOR} ${CURRENT_COLOR} ${NOT_INSTALLED_COLOR} ${DEFAULT_COLOR}"
       nvm_echo "WARNING: Colors may not display because they are not supported in this shell."
     else
-      nvm_echo_with_colors "Setting colors to: \033[$(nvm_print_color_code "${INSTALLED_COLOR}") ${INSTALLED_COLOR}\033[$(nvm_print_color_code "${LTS_AND_SYSTEM_COLOR}") ${LTS_AND_SYSTEM_COLOR}\033[$(nvm_print_color_code "${CURRENT_COLOR}") ${CURRENT_COLOR}\033[$(nvm_print_color_code "${NOT_INSTALLED_COLOR}") ${NOT_INSTALLED_COLOR}\033[$(nvm_print_color_code "${DEFAULT_COLOR}") ${DEFAULT_COLOR}\033[0m"
+      nvm_echo_with_colors "Setting colors to: $(nvm_wrap_with_color_code "${INSTALLED_COLOR}" "${INSTALLED_COLOR}")$(nvm_wrap_with_color_code "${LTS_AND_SYSTEM_COLOR}" "${LTS_AND_SYSTEM_COLOR}")$(nvm_wrap_with_color_code "${CURRENT_COLOR}" "${CURRENT_COLOR}")$(nvm_wrap_with_color_code "${NOT_INSTALLED_COLOR}" "${NOT_INSTALLED_COLOR}")$(nvm_wrap_with_color_code "${DEFAULT_COLOR}" "${DEFAULT_COLOR}")"
     fi
     export NVM_COLORS="$1"
   else
@@ -819,60 +853,73 @@ nvm_set_colors() {
 nvm_get_colors() {
   local COLOR
   local SYS_COLOR
-  if [ -n "${NVM_COLORS-}" ]; then
-    case $1 in
-      1) COLOR=$(nvm_print_color_code "$(echo "$NVM_COLORS" | awk '{ print substr($0, 1, 1); }')");;
-      2) COLOR=$(nvm_print_color_code "$(echo "$NVM_COLORS" | awk '{ print substr($0, 2, 1); }')");;
-      3) COLOR=$(nvm_print_color_code "$(echo "$NVM_COLORS" | awk '{ print substr($0, 3, 1); }')");;
-      4) COLOR=$(nvm_print_color_code "$(echo "$NVM_COLORS" | awk '{ print substr($0, 4, 1); }')");;
-      5) COLOR=$(nvm_print_color_code "$(echo "$NVM_COLORS" | awk '{ print substr($0, 5, 1); }')");;
-      6)
-        SYS_COLOR=$(nvm_print_color_code "$(echo "$NVM_COLORS" | awk '{ print substr($0, 2, 1); }')")
-        COLOR=$(nvm_echo "$SYS_COLOR" | command tr '0;' '1;')
-        ;;
-      *)
-        nvm_err "Invalid color index, ${1-}"
-        return 1
+  local COLORS
+  COLORS="${NVM_COLORS:-bygre}"
+  case $1 in
+    1) COLOR=$(nvm_print_color_code "$(echo "$COLORS" | awk '{ print substr($0, 1, 1); }')");;
+    2) COLOR=$(nvm_print_color_code "$(echo "$COLORS" | awk '{ print substr($0, 2, 1); }')");;
+    3) COLOR=$(nvm_print_color_code "$(echo "$COLORS" | awk '{ print substr($0, 3, 1); }')");;
+    4) COLOR=$(nvm_print_color_code "$(echo "$COLORS" | awk '{ print substr($0, 4, 1); }')");;
+    5) COLOR=$(nvm_print_color_code "$(echo "$COLORS" | awk '{ print substr($0, 5, 1); }')");;
+    6)
+      SYS_COLOR=$(nvm_print_color_code "$(echo "$COLORS" | awk '{ print substr($0, 2, 1); }')")
+      COLOR=$(nvm_echo "$SYS_COLOR" | command tr '0;' '1;')
       ;;
-    esac
-  else
-    case $1 in
-      1) COLOR='0;34m';;
-      2) COLOR='0;33m';;
-      3) COLOR='0;32m';;
-      4) COLOR='0;31m';;
-      5) COLOR='0;37m';;
-      6) COLOR='1;33m';;
-      *)
-        nvm_err "Invalid color index, ${1-}"
-        return 1
-      ;;
-    esac
-  fi
+    *)
+      nvm_err "Invalid color index, ${1-}"
+      return 1
+    ;;
+  esac
 
-  echo "$COLOR"
+  nvm_echo "$COLOR"
+}
+
+nvm_wrap_with_color_code() {
+  local CODE
+  CODE="$(nvm_print_color_code "${1}" 2>/dev/null ||:)"
+  local TEXT
+  TEXT="${2-}"
+  if nvm_has_colors && [ -n "${CODE}" ]; then
+    nvm_echo_with_colors "\033[${CODE}${TEXT}\033[0m"
+  else
+    nvm_echo "${TEXT}"
+  fi
+}
+
+nvm_wrap_with_color_code() {
+  local CODE
+  CODE="$(nvm_print_color_code "${1}" 2>/dev/null ||:)"
+  local TEXT
+  TEXT="${2-}"
+  if nvm_has_colors && [ -n "${CODE}" ]; then
+    nvm_echo_with_colors "\033[${CODE}${TEXT}\033[0m"
+  else
+    nvm_echo "${TEXT}"
+  fi
 }
 
 nvm_print_color_code() {
   case "${1-}" in
-    'r') nvm_echo '0;31m';;
-    'R') nvm_echo '1;31m';;
-    'g') nvm_echo '0;32m';;
-    'G') nvm_echo '1;32m';;
-    'b') nvm_echo '0;34m';;
-    'B') nvm_echo '1;34m';;
-    'c') nvm_echo '0;36m';;
-    'C') nvm_echo '1;36m';;
-    'm') nvm_echo '0;35m';;
-    'M') nvm_echo '1;35m';;
-    'y') nvm_echo '0;33m';;
-    'Y') nvm_echo '1;33m';;
-    'k') nvm_echo '0;30m';;
-    'K') nvm_echo '1;30m';;
-    'e') nvm_echo '0;37m';;
-    'W') nvm_echo '1;37m';;
-    *) nvm_err 'Invalid color code';
-        return 1
+    '0') return 0 ;;
+    'r') nvm_echo '0;31m' ;;
+    'R') nvm_echo '1;31m' ;;
+    'g') nvm_echo '0;32m' ;;
+    'G') nvm_echo '1;32m' ;;
+    'b') nvm_echo '0;34m' ;;
+    'B') nvm_echo '1;34m' ;;
+    'c') nvm_echo '0;36m' ;;
+    'C') nvm_echo '1;36m' ;;
+    'm') nvm_echo '0;35m' ;;
+    'M') nvm_echo '1;35m' ;;
+    'y') nvm_echo '0;33m' ;;
+    'Y') nvm_echo '1;33m' ;;
+    'k') nvm_echo '0;30m' ;;
+    'K') nvm_echo '1;30m' ;;
+    'e') nvm_echo '0;37m' ;;
+    'W') nvm_echo '1;37m' ;;
+    *)
+      nvm_err "Invalid color code: ${1-}";
+      return 1
     ;;
   esac
 }
@@ -1636,12 +1683,8 @@ nvm_get_checksum() {
 }
 
 nvm_print_versions() {
-  local VERSION
-  local LTS
-  local FORMAT
   local NVM_CURRENT
-  local NVM_LATEST_LTS_COLOR
-  local NVM_OLD_LTS_COLOR
+  NVM_CURRENT=$(nvm_ls_current)
 
   local INSTALLED_COLOR
   local SYSTEM_COLOR
@@ -1649,6 +1692,8 @@ nvm_print_versions() {
   local NOT_INSTALLED_COLOR
   local DEFAULT_COLOR
   local LTS_COLOR
+  local NVM_HAS_COLORS
+  NVM_HAS_COLORS=0
 
   INSTALLED_COLOR=$(nvm_get_colors 1)
   SYSTEM_COLOR=$(nvm_get_colors 2)
@@ -1657,67 +1702,73 @@ nvm_print_versions() {
   DEFAULT_COLOR=$(nvm_get_colors 5)
   LTS_COLOR=$(nvm_get_colors 6)
 
-  NVM_CURRENT=$(nvm_ls_current)
-  NVM_LATEST_LTS_COLOR=$(nvm_echo "${CURRENT_COLOR}" | command tr '0;' '1;')
-  NVM_OLD_LTS_COLOR="${DEFAULT_COLOR}"
-  local NVM_HAS_COLORS
   if [ -z "${NVM_NO_COLORS-}" ] && nvm_has_colors; then
     NVM_HAS_COLORS=1
   fi
-  local LTS_LENGTH
-  local LTS_FORMAT
-  nvm_echo "${1-}" \
-  | command sed '1!G;h;$!d' \
-  | command awk '{ if ($2 && $3 && $3 == "*") { print $1, "(Latest LTS: " $2 ")" } else if ($2) { print $1, "(LTS: " $2 ")" } else { print $1 } }' \
-  | command sed '1!G;h;$!d' \
-  | while read -r VERSION_LINE; do
-    VERSION="${VERSION_LINE%% *}"
-    LTS="${VERSION_LINE#* }"
-    FORMAT='%15s'
-    if [ "_${VERSION}" = "_${NVM_CURRENT}" ]; then
-      if [ "${NVM_HAS_COLORS-}" = '1' ]; then
-        FORMAT="\033[${CURRENT_COLOR}-> %12s\033[0m"
-      else
-        FORMAT='-> %12s *'
-      fi
-    elif [ "${VERSION}" = "system" ]; then
-      if [ "${NVM_HAS_COLORS-}" = '1' ]; then
-        FORMAT="\033[${SYSTEM_COLOR}%15s\033[0m"
-      else
-        FORMAT='%15s *'
-      fi
-    elif nvm_is_version_installed "${VERSION}"; then
-      if [ "${NVM_HAS_COLORS-}" = '1' ]; then
-        FORMAT="\033[${INSTALLED_COLOR}%15s\033[0m"
-      else
-        FORMAT='%15s *'
-      fi
-    fi
-    if [ "${LTS}" != "${VERSION}" ]; then
-      case "${LTS}" in
-        *Latest*)
-          LTS="${LTS##Latest }"
-          LTS_LENGTH="${#LTS}"
-          if [ "${NVM_HAS_COLORS-}" = '1' ]; then
-            LTS_FORMAT="  \\033[${NVM_LATEST_LTS_COLOR}%${LTS_LENGTH}s\\033[0m"
-          else
-            LTS_FORMAT="  %${LTS_LENGTH}s"
-          fi
-        ;;
-        *)
-          LTS_LENGTH="${#LTS}"
-          if [ "${NVM_HAS_COLORS-}" = '1' ]; then
-            LTS_FORMAT="  \\033[${NVM_OLD_LTS_COLOR}%${LTS_LENGTH}s\\033[0m"
-          else
-            LTS_FORMAT="  %${LTS_LENGTH}s"
-          fi
-        ;;
-      esac
-      command printf -- "${FORMAT}${LTS_FORMAT}\\n" "${VERSION}" " ${LTS}"
-    else
-      command printf -- "${FORMAT}\\n" "${VERSION}"
-    fi
-  done
+
+  command awk \
+    -v remote_versions="$(printf '%s' "${1-}" | tr '\n' '|')" \
+    -v installed_versions="$(nvm_ls | tr '\n' '|')" -v current="$NVM_CURRENT" \
+    -v installed_color="$INSTALLED_COLOR" -v system_color="$SYSTEM_COLOR" \
+    -v current_color="$CURRENT_COLOR" -v default_color="$DEFAULT_COLOR" \
+    -v old_lts_color="$DEFAULT_COLOR" -v has_colors="$NVM_HAS_COLORS" '
+function alen(arr, i, len) { len=0; for(i in arr) len++; return len; }
+BEGIN {
+  fmt_installed = has_colors ? (installed_color ? "\033[" installed_color "%15s\033[0m" : "%15s") : "%15s *";
+  fmt_system = has_colors ? (system_color ? "\033[" system_color "%15s\033[0m" : "%15s") : "%15s *";
+  fmt_current = has_colors ? (current_color ? "\033[" current_color "->%13s\033[0m" : "%15s") : "->%13s *";
+
+  latest_lts_color = current_color;
+  sub(/0;/, "1;", latest_lts_color);
+
+  fmt_latest_lts = has_colors && latest_lts_color ? ("\033[" latest_lts_color " (Latest LTS: %s)\033[0m") : " (Latest LTS: %s)";
+  fmt_old_lts = has_colors && old_lts_color ? ("\033[" old_lts_color " (LTS: %s)\033[0m") : " (LTS: %s)";
+
+  split(remote_versions, lines, "|");
+  split(installed_versions, installed, "|");
+  rows = alen(lines);
+
+  for (n = 1; n <= rows; n++) {
+    split(lines[n], fields, "[[:blank:]]+");
+    cols = alen(fields);
+    version = fields[1];
+    is_installed = 0;
+
+    for (i in installed) {
+      if (version == installed[i]) {
+        is_installed = 1;
+        break;
+      }
+    }
+
+    fmt_version = "%15s";
+    if (version == current) {
+      fmt_version = fmt_current;
+    } else if (version == "system") {
+      fmt_version = fmt_system;
+    } else if (is_installed) {
+      fmt_version = fmt_installed;
+    }
+
+    padding = (!has_colors && is_installed) ? "" : "  ";
+
+    if (cols == 1) {
+      formatted = sprintf(fmt_version, version);
+    } else if (cols == 2) {
+      formatted = sprintf((fmt_version padding fmt_old_lts), version, fields[2]);
+    } else if (cols == 3 && fields[3] == "*") {
+      formatted = sprintf((fmt_version padding fmt_latest_lts), version, fields[2]);
+    }
+
+    output[n] = formatted;
+  }
+
+  for (n = 1; n <= rows; n++) {
+    print output[n]
+  }
+
+  exit
+}'
 }
 
 nvm_validate_implicit_alias() {
@@ -1870,9 +1921,12 @@ nvm_get_arch() {
     *) NVM_ARCH="${HOST_ARCH}" ;;
   esac
 
-  # If running a 64bit ARM kernel but a 32bit ARM userland, change ARCH to 32bit ARM (armv7l)
-  L=$(ls -dl /sbin/init 2>/dev/null) # if /sbin/init is 32bit executable
-  if [ "$(uname)" = "Linux" ] && [ "${NVM_ARCH}" = arm64 ] && [ "$(od -An -t x1 -j 4 -N 1 "${L#*-> }")" = ' 01' ]; then
+  # If running a 64bit ARM kernel but a 32bit ARM userland,
+  # change ARCH to 32bit ARM (armv7l) if /sbin/init is 32bit executable
+  local L
+  if [ "$(uname)" = "Linux" ] && [ "${NVM_ARCH}" = arm64 ] &&
+    L="$(command ls -dl /sbin/init 2>/dev/null)" &&
+    [ "$(od -An -t x1 -j 4 -N 1 "${L#*-> }")" = ' 01' ]; then
     NVM_ARCH=armv7l
     HOST_ARCH=armv7l
   fi
@@ -2101,9 +2155,12 @@ nvm_get_download_slug() {
     fi
   fi
 
-  # If node version in below 16.0.0 then there is no arm64 packages available in node repositories, so we have to install "x64" arch packages
-  # If running MAC M1 :: arm64 arch and Darwin OS then use "x64" Architecture because node doesn't provide darwin_arm64 package below v16.0.0
-  if nvm_version_greater '16.0.0' "${VERSION}"; then
+  # If running MAC M1 :: Node v14.17.0 was the first version to offer official experimental support:
+  # https://github.com/nodejs/node/issues/40126 (although binary distributions aren't available until v16)
+  if \
+    nvm_version_greater '14.17.0' "${VERSION}" \
+    || (nvm_version_greater_than_or_equal_to "${VERSION}" '15.0.0' && nvm_version_greater '16.0.0' "${VERSION}") \
+  ; then
     if [ "_${NVM_OS}" = '_darwin' ] && [ "${NVM_ARCH}" = 'arm64' ]; then
       NVM_ARCH=x64
     fi
@@ -2741,6 +2798,15 @@ nvm() {
     EXIT_CODE="$?"
     set -a
     return "$EXIT_CODE"
+  elif [ -n "${BASH-}" ] && [ "${-#*E}" != "$-" ]; then
+    # shellcheck disable=SC3041
+    set +E
+    local EXIT_CODE
+    IFS="${DEFAULT_IFS}" nvm "$@"
+    EXIT_CODE="$?"
+    # shellcheck disable=SC3041
+    set -E
+    return "$EXIT_CODE"
   elif [ "${IFS}" != "${DEFAULT_IFS}" ]; then
     IFS="${DEFAULT_IFS}" nvm "$@"
     return "$?"
@@ -2759,38 +2825,6 @@ nvm() {
             break
           fi
         done
-
-        local INITIAL_COLOR_INFO
-        local RED_INFO
-        local GREEN_INFO
-        local BLUE_INFO
-        local CYAN_INFO
-        local MAGENTA_INFO
-        local YELLOW_INFO
-        local BLACK_INFO
-        local GREY_WHITE_INFO
-
-        if [ -z "${NVM_NO_COLORS-}"  ] && nvm_has_colors; then
-          INITIAL_COLOR_INFO='\033[0;32m g\033[0m \033[0;34m b\033[0m \033[0;33m y\033[0m \033[0;31m r\033[0m \033[0;37m e\033[0m'
-          RED_INFO='\033[0;31m r\033[0m/\033[1;31mR\033[0m = \033[0;31mred\033[0m / \033[1;31mbold red\033[0m'
-          GREEN_INFO='\033[0;32m g\033[0m/\033[1;32mG\033[0m = \033[0;32mgreen\033[0m / \033[1;32mbold green\033[0m'
-          BLUE_INFO='\033[0;34m b\033[0m/\033[1;34mB\033[0m = \033[0;34mblue\033[0m / \033[1;34mbold blue\033[0m'
-          CYAN_INFO='\033[0;36m c\033[0m/\033[1;36mC\033[0m = \033[0;36mcyan\033[0m / \033[1;36mbold cyan\033[0m'
-          MAGENTA_INFO='\033[0;35m m\033[0m/\033[1;35mM\033[0m = \033[0;35mmagenta\033[0m / \033[1;35mbold magenta\033[0m'
-          YELLOW_INFO='\033[0;33m y\033[0m/\033[1;33mY\033[0m = \033[0;33myellow\033[0m / \033[1;33mbold yellow\033[0m'
-          BLACK_INFO='\033[0;30m k\033[0m/\033[1;30mK\033[0m = \033[0;30mblack\033[0m / \033[1;30mbold black\033[0m'
-          GREY_WHITE_INFO='\033[0;37m e\033[0m/\033[1;37mW\033[0m = \033[0;37mlight grey\033[0m / \033[1;37mwhite\033[0m'
-        else
-          INITIAL_COLOR_INFO='gbYre'
-          RED_INFO='r/R = red / bold red'
-          GREEN_INFO='g/G = green / bold green'
-          BLUE_INFO='b/B = blue / bold blue'
-          CYAN_INFO='c/C = cyan / bold cyan'
-          MAGENTA_INFO='m/M = magenta / bold magenta'
-          YELLOW_INFO='y/Y = yellow / bold yellow'
-          BLACK_INFO='k/K = black / bold black'
-          GREY_WHITE_INFO='e/W = light grey / white'
-        fi
 
         local NVM_IOJS_PREFIX
         NVM_IOJS_PREFIX="$(nvm_iojs_prefix)"
@@ -2868,17 +2902,16 @@ nvm() {
         nvm_echo '  nvm cache clear                             Empty cache directory for nvm'
         nvm_echo '  nvm set-colors [<color codes>]              Set five text colors using format "yMeBg". Available when supported.'
         nvm_echo '                                               Initial colors are:'
-        nvm_echo_with_colors "                                                  ${INITIAL_COLOR_INFO}"
+        nvm_echo_with_colors "                                                  $(nvm_wrap_with_color_code b b)$(nvm_wrap_with_color_code y y)$(nvm_wrap_with_color_code g g)$(nvm_wrap_with_color_code r r)$(nvm_wrap_with_color_code e e)"
         nvm_echo '                                               Color codes:'
-        nvm_echo_with_colors "                                                ${RED_INFO}"
-        nvm_echo_with_colors "                                                ${GREEN_INFO}"
-        nvm_echo_with_colors "                                                ${BLUE_INFO}"
-        nvm_echo_with_colors "                                                ${CYAN_INFO}"
-        nvm_echo_with_colors "                                                ${MAGENTA_INFO}"
-        nvm_echo_with_colors "                                                ${YELLOW_INFO}"
-        nvm_echo_with_colors "                                                ${BLACK_INFO}"
-        nvm_echo_with_colors "                                                ${GREY_WHITE_INFO}"
-        nvm_echo
+        nvm_echo_with_colors "                                                $(nvm_wrap_with_color_code r r)/$(nvm_wrap_with_color_code R R) = $(nvm_wrap_with_color_code r red) / $(nvm_wrap_with_color_code R 'bold red')"
+        nvm_echo_with_colors "                                                $(nvm_wrap_with_color_code g g)/$(nvm_wrap_with_color_code G G) = $(nvm_wrap_with_color_code g green) / $(nvm_wrap_with_color_code G 'bold green')"
+        nvm_echo_with_colors "                                                $(nvm_wrap_with_color_code b b)/$(nvm_wrap_with_color_code B B) = $(nvm_wrap_with_color_code b blue) / $(nvm_wrap_with_color_code B 'bold blue')"
+        nvm_echo_with_colors "                                                $(nvm_wrap_with_color_code c c)/$(nvm_wrap_with_color_code C C) = $(nvm_wrap_with_color_code c cyan) / $(nvm_wrap_with_color_code C 'bold cyan')"
+        nvm_echo_with_colors "                                                $(nvm_wrap_with_color_code m m)/$(nvm_wrap_with_color_code M M) = $(nvm_wrap_with_color_code m magenta) / $(nvm_wrap_with_color_code M 'bold magenta')"
+        nvm_echo_with_colors "                                                $(nvm_wrap_with_color_code y y)/$(nvm_wrap_with_color_code Y Y) = $(nvm_wrap_with_color_code y yellow) / $(nvm_wrap_with_color_code Y 'bold yellow')"
+        nvm_echo_with_colors "                                                $(nvm_wrap_with_color_code k k)/$(nvm_wrap_with_color_code K K) = $(nvm_wrap_with_color_code k black) / $(nvm_wrap_with_color_code K 'bold black')"
+        nvm_echo_with_colors "                                                $(nvm_wrap_with_color_code e e)/$(nvm_wrap_with_color_code W W) = $(nvm_wrap_with_color_code e 'light grey') / $(nvm_wrap_with_color_code W white)"
         nvm_echo 'Example:'
         nvm_echo '  nvm install 8.0.0                     Install a specific version number'
         nvm_echo '  nvm use 8.0                           Use the latest available 8.0.x release'
@@ -2964,6 +2997,12 @@ nvm() {
       if [ -n "${OS_VERSION}" ]; then
         nvm_err "OS version: ${OS_VERSION}"
       fi
+      if nvm_has "awk"; then
+        nvm_err "awk: $(nvm_command_info awk), $({ command awk --version 2>/dev/null || command awk -W version; } \
+          | command head -n 1)"
+      else
+        nvm_err "awk: not found"
+      fi
       if nvm_has "curl"; then
         nvm_err "curl: $(nvm_command_info curl), $(command curl -V | command head -n 1)"
       else
@@ -2976,7 +3015,7 @@ nvm() {
       fi
 
       local TEST_TOOLS ADD_TEST_TOOLS
-      TEST_TOOLS="git grep awk"
+      TEST_TOOLS="git grep"
       ADD_TEST_TOOLS="sed cut basename rm mkdir xargs"
       if [ "darwin" != "$(nvm_get_os)" ] && [ "freebsd" != "$(nvm_get_os)" ]; then
         TEST_TOOLS="${TEST_TOOLS} ${ADD_TEST_TOOLS}"
@@ -3042,7 +3081,6 @@ nvm() {
       local PROVIDED_REINSTALL_PACKAGES_FROM
       local REINSTALL_PACKAGES_FROM
       local SKIP_DEFAULT_PACKAGES
-      local DEFAULT_PACKAGES
 
       while [ $# -ne 0 ]; do
         case "$1" in
@@ -3242,14 +3280,6 @@ nvm() {
         shift
       done
 
-      if [ -z "${SKIP_DEFAULT_PACKAGES-}" ]; then
-        DEFAULT_PACKAGES="$(nvm_get_default_packages)"
-        EXIT_CODE=$?
-        if [ $EXIT_CODE -ne 0 ]; then
-          return $EXIT_CODE
-        fi
-      fi
-
       if [ -n "${PROVIDED_REINSTALL_PACKAGES_FROM-}" ] && [ "$(nvm_ensure_version_prefix "${PROVIDED_REINSTALL_PACKAGES_FROM}")" = "${VERSION}" ]; then
         nvm_err "You can't reinstall global packages from the same version of node you're installing."
         return 4
@@ -3265,19 +3295,27 @@ nvm() {
         FLAVOR="$(nvm_node_prefix)"
       fi
 
+      local EXIT_CODE
+      EXIT_CODE=0
+
       if nvm_is_version_installed "${VERSION}"; then
         nvm_err "${VERSION} is already installed."
-        if nvm use "${VERSION}"; then
+        nvm use "${VERSION}"
+        EXIT_CODE=$?
+        if [ $EXIT_CODE -eq 0 ]; then
           if [ "${NVM_UPGRADE_NPM}" = 1 ]; then
             nvm install-latest-npm
+            EXIT_CODE=$?
           fi
-          if [ -z "${SKIP_DEFAULT_PACKAGES-}" ] && [ -n "${DEFAULT_PACKAGES-}" ]; then
-            nvm_install_default_packages "${DEFAULT_PACKAGES}"
+          if [ $EXIT_CODE -ne 0 ] && [ -z "${SKIP_DEFAULT_PACKAGES-}" ]; then
+            nvm_install_default_packages
           fi
-          if [ -n "${REINSTALL_PACKAGES_FROM-}" ] && [ "_${REINSTALL_PACKAGES_FROM}" != "_N/A" ]; then
+          if [ $EXIT_CODE -ne 0 ] && [ -n "${REINSTALL_PACKAGES_FROM-}" ] && [ "_${REINSTALL_PACKAGES_FROM}" != "_N/A" ]; then
             nvm reinstall-packages "${REINSTALL_PACKAGES_FROM}"
+            EXIT_CODE=$?
           fi
         fi
+
         if [ -n "${LTS-}" ]; then
           LTS="$(echo "${LTS}" | tr '[:upper:]' '[:lower:]')"
           nvm_ensure_default_set "lts/${LTS}"
@@ -3285,15 +3323,14 @@ nvm() {
           nvm_ensure_default_set "${provided_version}"
         fi
 
-        if [ -n "${ALIAS-}" ]; then
+        if [ $EXIT_CODE -ne 0 ] && [ -n "${ALIAS-}" ]; then
           nvm alias "${ALIAS}" "${provided_version}"
+          EXIT_CODE=$?
         fi
 
-        return $?
+        return $EXIT_CODE
       fi
 
-      local EXIT_CODE
-      EXIT_CODE=-1
       if [ -n "${NVM_INSTALL_THIRD_PARTY_HOOK-}" ]; then
         nvm_err '** $NVM_INSTALL_THIRD_PARTY_HOOK env var set; dispatching to third-party installation method **'
         local NVM_METHOD_PREFERENCE
@@ -3335,7 +3372,10 @@ nvm() {
         if [ $nobinary -ne 1 ] && nvm_binary_available "${VERSION}"; then
           NVM_NO_PROGRESS="${NVM_NO_PROGRESS:-${noprogress}}" nvm_install_binary "${FLAVOR}" std "${VERSION}" "${nosource}"
           EXIT_CODE=$?
+        else
+          EXIT_CODE=-1
         fi
+
         if [ $EXIT_CODE -ne 0 ]; then
           if [ -z "${NVM_MAKE_JOBS-}" ]; then
             nvm_get_make_jobs
@@ -3349,7 +3389,6 @@ nvm() {
             EXIT_CODE=$?
           fi
         fi
-
       fi
 
       if [ $EXIT_CODE -eq 0 ] && nvm_use_if_needed "${VERSION}" && nvm_install_npm_if_needed "${VERSION}"; then
@@ -3362,10 +3401,10 @@ nvm() {
           nvm install-latest-npm
           EXIT_CODE=$?
         fi
-        if [ -z "${SKIP_DEFAULT_PACKAGES-}" ] && [ -n "${DEFAULT_PACKAGES-}" ]; then
-          nvm_install_default_packages "${DEFAULT_PACKAGES}"
+        if [ $EXIT_CODE -eq 0 ] && [ -z "${SKIP_DEFAULT_PACKAGES-}" ]; then
+          nvm_install_default_packages
         fi
-        if [ -n "${REINSTALL_PACKAGES_FROM-}" ] && [ "_${REINSTALL_PACKAGES_FROM}" != "_N/A" ]; then
+        if [ $EXIT_CODE -eq 0 ] && [ -n "${REINSTALL_PACKAGES_FROM-}" ] && [ "_${REINSTALL_PACKAGES_FROM}" != "_N/A" ]; then
           nvm reinstall-packages "${REINSTALL_PACKAGES_FROM}"
           EXIT_CODE=$?
         fi
@@ -3510,6 +3549,8 @@ nvm() {
       local NVM_DELETE_PREFIX
       NVM_DELETE_PREFIX=0
       local NVM_LTS
+      local IS_VERSION_FROM_NVMRC
+      IS_VERSION_FROM_NVMRC=0
 
       while [ $# -ne 0 ]; do
         case "$1" in
@@ -3537,6 +3578,7 @@ nvm() {
         NVM_SILENT="${NVM_SILENT:-0}" nvm_rc_version
         if [ -n "${NVM_RC_VERSION-}" ]; then
           PROVIDED_VERSION="${NVM_RC_VERSION}"
+          IS_VERSION_FROM_NVMRC=1
           VERSION="$(nvm_version "${PROVIDED_VERSION}")"
         fi
         unset NVM_RC_VERSION
@@ -3576,14 +3618,12 @@ nvm() {
       fi
       if [ "${VERSION}" = 'N/A' ]; then
         if [ "${NVM_SILENT:-0}" -ne 1 ]; then
-          nvm_err "N/A: version \"${PROVIDED_VERSION} -> ${VERSION}\" is not yet installed."
-          nvm_err ""
-          nvm_err "You need to run \"nvm install ${PROVIDED_VERSION}\" to install it before using it."
+          nvm_ensure_version_installed "${PROVIDED_VERSION}" "${IS_VERSION_FROM_NVMRC}"
         fi
         return 3
       # This nvm_ensure_version_installed call can be a performance bottleneck
       # on shell startup. Perhaps we can optimize it away or make it faster.
-      elif ! nvm_ensure_version_installed "${VERSION}"; then
+      elif ! nvm_ensure_version_installed "${VERSION}" "${IS_VERSION_FROM_NVMRC}"; then
         return $?
       fi
 
@@ -3638,6 +3678,8 @@ nvm() {
       local provided_version
       local has_checked_nvmrc
       has_checked_nvmrc=0
+      local IS_VERSION_FROM_NVMRC
+      IS_VERSION_FROM_NVMRC=0
       # run given version of node
 
       local NVM_SILENT
@@ -3683,6 +3725,8 @@ nvm() {
             if [ $has_checked_nvmrc -ne 1 ]; then
               NVM_SILENT="${NVM_SILENT:-0}" nvm_rc_version && has_checked_nvmrc=1
             fi
+            provided_version="${NVM_RC_VERSION}"
+            IS_VERSION_FROM_NVMRC=1
             VERSION="$(nvm_version "${NVM_RC_VERSION}")" ||:
             unset NVM_RC_VERSION
           else
@@ -3705,7 +3749,7 @@ nvm() {
         VERSION=''
       fi
       if [ "_${VERSION}" = "_N/A" ]; then
-        nvm_ensure_version_installed "${provided_version}"
+        nvm_ensure_version_installed "${provided_version}" "${IS_VERSION_FROM_NVMRC}"
       elif [ "${NVM_IOJS}" = true ]; then
         nvm exec "${NVM_SILENT_ARG-}" "${LTS_ARG-}" "${VERSION}" iojs "$@"
       else
@@ -4125,7 +4169,7 @@ nvm() {
       NVM_VERSION_ONLY=true NVM_LTS="${NVM_LTS-}" nvm_remote_version "${PATTERN:-node}"
     ;;
     "--version" | "-v")
-      nvm_echo '0.39.1'
+      nvm_echo '0.39.2'
     ;;
     "unload")
       nvm deactivate >/dev/null 2>&1
@@ -4167,7 +4211,7 @@ nvm() {
         nvm_node_version_has_solaris_binary nvm_iojs_version_has_solaris_binary \
         nvm_curl_libz_support nvm_command_info nvm_is_zsh nvm_stdout_is_terminal \
         nvm_npmrc_bad_news_bears \
-        nvm_get_colors nvm_set_colors nvm_print_color_code nvm_format_help_message_colors \
+        nvm_get_colors nvm_set_colors nvm_print_color_code nvm_wrap_with_color_code nvm_format_help_message_colors \
         nvm_echo_with_colors nvm_err_with_colors \
         nvm_get_artifact_compression nvm_install_binary_extract nvm_extract_tarball \
         >/dev/null 2>&1
@@ -4230,10 +4274,16 @@ nvm_get_default_packages() {
 }
 
 nvm_install_default_packages() {
+  local DEFAULT_PACKAGES
+  DEFAULT_PACKAGES="$(nvm_get_default_packages)"
+  EXIT_CODE=$?
+  if [ $EXIT_CODE -ne 0 ] || [ -z "${DEFAULT_PACKAGES}" ]; then
+    return $EXIT_CODE
+  fi
   nvm_echo "Installing default global packages from ${NVM_DIR}/default-packages..."
-  nvm_echo "npm install -g --quiet $1"
+  nvm_echo "npm install -g --quiet ${DEFAULT_PACKAGES}"
 
-  if ! nvm_echo "$1" | command xargs npm install -g --quiet; then
+  if ! nvm_echo "${DEFAULT_PACKAGES}" | command xargs npm install -g --quiet; then
     nvm_err "Failed installing default packages. Please check if your default-packages file or a package in it has problems!"
     return 1
   fi
