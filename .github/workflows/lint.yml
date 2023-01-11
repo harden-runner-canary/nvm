@@ -25,7 +25,7 @@ jobs:
   dockerfile_lint:
     permissions:
       contents: read
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     steps:
       - uses: step-security/harden-runner@rc
         with:
@@ -46,7 +46,7 @@ jobs:
   doctoc:
     permissions:
       contents: read
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - uses: step-security/harden-runner@rc
         with:
