@@ -332,6 +332,10 @@ nvm_install_latest_npm() {
       nvm_echo '* `npm` `v6.9` is the last version that works on `node` `v6.0.x`, `v6.1.x`, `v9.0.x`, `v9.1.x`, or `v9.2.x`'
       $NVM_NPM_CMD install -g npm@6.9
     elif [ $NVM_IS_10_OR_ABOVE -eq 0 ]; then
+      if nvm_version_greater 4.4.4 "${NPM_VERSION}"; then
+        nvm_echo '* `npm` `v4.4.4` or later is required to install npm v6.14.18'
+        $NVM_NPM_CMD install -g npm@4
+      fi
       nvm_echo '* `npm` `v6.x` is the last version that works on `node` below `v10.0.0`'
       $NVM_NPM_CMD install -g npm@6
     elif \
@@ -373,6 +377,7 @@ if [ -z "${NVM_DIR-}" ]; then
     # shellcheck disable=SC2169,SC3054
     NVM_SCRIPT_SOURCE="${BASH_SOURCE[0]}"
   fi
+  # shellcheck disable=SC2086
   NVM_DIR="$(nvm_cd ${NVM_CD_FLAGS} "$(dirname "${NVM_SCRIPT_SOURCE:-$0}")" >/dev/null && \pwd)"
   export NVM_DIR
 else
@@ -693,6 +698,7 @@ ${NVM_LS_REMOTE_POST_MERGED_OUTPUT}" | nvm_grep -v "N/A" | command sed '/^ *$/d'
   fi
   # the `sed` is to remove trailing whitespaces (see "weird behavior" ~25 lines up)
   nvm_echo "${VERSIONS}" | command sed 's/ *$//g'
+  # shellcheck disable=SC2317
   return $NVM_LS_REMOTE_EXIT_CODE || $NVM_LS_REMOTE_IOJS_EXIT_CODE
 }
 
@@ -872,18 +878,6 @@ nvm_get_colors() {
   esac
 
   nvm_echo "$COLOR"
-}
-
-nvm_wrap_with_color_code() {
-  local CODE
-  CODE="$(nvm_print_color_code "${1}" 2>/dev/null ||:)"
-  local TEXT
-  TEXT="${2-}"
-  if nvm_has_colors && [ -n "${CODE}" ]; then
-    nvm_echo_with_colors "\033[${CODE}${TEXT}\033[0m"
-  else
-    nvm_echo "${TEXT}"
-  fi
 }
 
 nvm_wrap_with_color_code() {
@@ -3801,6 +3795,7 @@ nvm() {
       nvm_ensure_version_installed "${provided_version}"
       EXIT_CODE=$?
       if [ "${EXIT_CODE}" != "0" ]; then
+        # shellcheck disable=SC2086
         return $EXIT_CODE
       fi
 
@@ -3957,6 +3952,7 @@ nvm() {
       nvm_ensure_version_installed "${provided_version}"
       EXIT_CODE=$?
       if [ "${EXIT_CODE}" != "0" ]; then
+        # shellcheck disable=SC2086
         return $EXIT_CODE
       fi
       local NVM_VERSION_DIR
@@ -4169,7 +4165,7 @@ nvm() {
       NVM_VERSION_ONLY=true NVM_LTS="${NVM_LTS-}" nvm_remote_version "${PATTERN:-node}"
     ;;
     "--version" | "-v")
-      nvm_echo '0.39.2'
+      nvm_echo '0.39.3'
     ;;
     "unload")
       nvm deactivate >/dev/null 2>&1
