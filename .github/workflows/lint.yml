@@ -29,11 +29,9 @@ jobs:
           allowed-endpoints:
             ghcr.io:443
             github.com:443
-            raw.githubusercontent.com:443
-            pkg-containers.githubusercontent.com:443
+            *.githubusercontent.com:443
             nodejs.org:443
-            registry.npmjs.org:443
-            raw.githubusercontent.com:443
+            registry.npmjs.org:443            
       - uses: actions/checkout@v3
       - uses: ljharb/actions/node/install@8cfcaa4f61f149dce0e75a453841b9bbe0f86175
         name: 'nvm install ${{ matrix.node-version }} && npm install'
@@ -52,8 +50,7 @@ jobs:
             github.com:443
             raw.githubusercontent.com:443
             nodejs.org:443
-            registry.npmjs.org:443
-            raw.githubusercontent.com:443
+            registry.npmjs.org:443            
       - uses: actions/checkout@v3
       - uses: ljharb/actions/node/install@8cfcaa4f61f149dce0e75a453841b9bbe0f86175
         name: 'nvm install ${{ matrix.node-version }} && npm install'
