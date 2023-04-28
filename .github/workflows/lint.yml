@@ -9,7 +9,7 @@ jobs:
       id-token: write
     runs-on: ubuntu-latest
     steps:
-      - uses: step-security/harden-runner@int
+      - uses: step-security/harden-runner@rc
         with:
           policy: nvm-eclint
       - uses: actions/checkout@v3
@@ -24,7 +24,7 @@ jobs:
       contents: read
     runs-on: ubuntu-20.04
     steps:
-      - uses: step-security/harden-runner@int
+      - uses: step-security/harden-runner@rc
         with:
           allowed-endpoints:
             ghcr.io:443
@@ -44,7 +44,7 @@ jobs:
       contents: read
     runs-on: ubuntu-22.04
     steps:
-      - uses: step-security/harden-runner@int
+      - uses: step-security/harden-runner@rc
         with:
           allowed-endpoints:
             github.com:443
@@ -63,7 +63,7 @@ jobs:
       contents: read
     runs-on: ubuntu-latest
     steps:
-      - uses: step-security/harden-runner@int
+      - uses: step-security/harden-runner@rc
         with:
           allowed-endpoints:
             github.com:443
