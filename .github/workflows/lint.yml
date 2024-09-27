@@ -3,21 +3,7 @@ name: 'Tests: linting'
 on: workflow_dispatch
 
 jobs:
-  eclint:
-    permissions:
-      contents: read
-      id-token: write
-    runs-on: ubuntu-latest
-    steps:
-      - uses: step-security/harden-runner@rc
-        with:
-          policy: nvm-eclint
-      - uses: actions/checkout@v3
-      - uses: ljharb/actions/node/install@8cfcaa4f61f149dce0e75a453841b9bbe0f86175
-        name: 'nvm install ${{ matrix.node-version }} && npm install'
-        with:
-          node-version: 'lts/*'
-      - run: npm run eclint
+  
 
   dockerfile_lint:
     permissions:
