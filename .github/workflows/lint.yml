@@ -57,3 +57,56 @@ jobs:
       - uses: actions/checkout@v3
       - name: check tests filenames
         run: ./rename_test.sh --check
+
+  dockerfile_lint-arm:
+    permissions:
+      contents: read
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: step-security/harden-runner@rc
+        with:
+          allowed-endpoints:
+            ghcr.io:443
+            github.com:443
+            *.githubusercontent.com:443
+            nodejs.org:443
+            registry.npmjs.org:443
+      - uses: actions/checkout@v3
+      - uses: ljharb/actions/node/install@8cfcaa4f61f149dce0e75a453841b9bbe0f86175
+        name: 'nvm install ${{ matrix.node-version }} && npm install'
+        with:
+          node-version: 'lts/*'
+      - run: npm run dockerfile_lint
+
+  doctoc-arm:
+    permissions:
+      contents: read
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: step-security/harden-runner@rc
+        with:
+          allowed-endpoints:
+            github.com:443
+            raw.githubusercontent.com:443
+            nodejs.org:443
+            registry.npmjs.org:443
+      - uses: actions/checkout@v3
+      - uses: ljharb/actions/node/install@8cfcaa4f61f149dce0e75a453841b9bbe0f86175
+        name: 'nvm install ${{ matrix.node-version }} && npm install'
+        with:
+          node-version: 'lts/*'
+      - run: npm run doctoc:check
+
+  test_naming-arm:
+    permissions:
+      contents: read
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: step-security/harden-runner@rc
+        with:
+          allowed-endpoints:
+            github.com:443
+            raw.githubusercontent.com:443
+      - uses: actions/checkout@v3
+      - name: check tests filenames
+        run: ./rename_test.sh --check
