@@ -8,7 +8,7 @@ jobs:
   dockerfile_lint:
     permissions:
       contents: read
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-26.04
     steps:
       - uses: step-security/harden-runner@rc
         with:
@@ -28,7 +28,7 @@ jobs:
   doctoc:
     permissions:
       contents: read
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-26.04
     steps:
       - uses: step-security/harden-runner@rc
         with:
@@ -47,7 +47,7 @@ jobs:
   test_naming:
     permissions:
       contents: read
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - uses: step-security/harden-runner@rc
         with:
@@ -61,7 +61,7 @@ jobs:
   dockerfile_lint-arm:
     permissions:
       contents: read
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     steps:
       - uses: step-security/harden-runner@rc
         with:
@@ -81,7 +81,7 @@ jobs:
   doctoc-arm:
     permissions:
       contents: read
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     steps:
       - uses: step-security/harden-runner@rc
         with:
@@ -100,7 +100,7 @@ jobs:
   test_naming-arm:
     permissions:
       contents: read
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     steps:
       - uses: step-security/harden-runner@rc
         with:
