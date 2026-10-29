@@ -10,7 +10,7 @@ jobs:
       contents: read
     runs-on: ubuntu-26.04
     steps:
-      - uses: prateek-stepsecurity/harden-runner@int
+      - uses: prateek-stepsecurity/harden-runner@non-tls
         with:
           allowed-endpoints:
             ghcr.io:443
@@ -30,7 +30,7 @@ jobs:
       contents: read
     runs-on: ubuntu-26.04
     steps:
-      - uses: prateek-stepsecurity/harden-runner@int
+      - uses: prateek-stepsecurity/harden-runner@non-tls
         with:
           allowed-endpoints:
             github.com:443
@@ -49,7 +49,7 @@ jobs:
       contents: read
     runs-on: ubuntu-26.04
     steps:
-      - uses: prateek-stepsecurity/harden-runner@int
+      - uses: prateek-stepsecurity/harden-runner@non-tls
         with:
           allowed-endpoints:
             github.com:443
@@ -63,7 +63,7 @@ jobs:
       contents: read
     runs-on: ubuntu-26.04-arm
     steps:
-      - uses: prateek-stepsecurity/harden-runner@int
+      - uses: prateek-stepsecurity/harden-runner@non-tls
         with:
           allowed-endpoints:
             ghcr.io:443
@@ -83,7 +83,7 @@ jobs:
       contents: read
     runs-on: ubuntu-26.04-arm
     steps:
-      - uses: prateek-stepsecurity/harden-runner@int
+      - uses: prateek-stepsecurity/harden-runner@non-tls
         with:
           allowed-endpoints:
             github.com:443
@@ -102,7 +102,7 @@ jobs:
       contents: read
     runs-on: ubuntu-26.04-arm
     steps:
-      - uses: prateek-stepsecurity/harden-runner@int
+      - uses: prateek-stepsecurity/harden-runner@non-tls
         with:
           allowed-endpoints:
             github.com:443
